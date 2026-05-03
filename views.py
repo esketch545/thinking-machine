@@ -82,6 +82,12 @@ class FactionPoolSelect(View):
         self.add_item(self.select)
 
     async def on_select(self, interaction: discord.Interaction):
+        if interaction.user.id != self.session.host_id:
+            await interaction.response.send_message(
+                "Only the host can select factions for this draft.", ephemeral=True
+            )
+            return
+
         self.session.faction_pool = set(self.select.values)
         self.session.state = "joining"
         save_state()

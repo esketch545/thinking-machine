@@ -24,6 +24,24 @@
       "state": "joining",
       "channel_id": null,
       "test_mode": false
+    },
+    "test-3": {
+      "name": "test-3",
+      "host_id": 186141810207358985,
+      "player_ids": [],
+      "faction_pool": [
+        "Spacing Guild",
+        "Bene Gesserit",
+        "Atreides",
+        "Harkonnen",
+        "Fremen"
+      ],
+      "assignments": {},
+      "current_index": 0,
+      "current_draw": [],
+      "state": "joining",
+      "channel_id": null,
+      "test_mode": false
     }
   }
 }
