@@ -10,13 +10,14 @@ class GameSession:
     def __init__(self, guild_id: int, host_id: int):
         self.guild_id = guild_id
         self.host_id = host_id
-        self.player_ids: list[int] = []       # user IDs in join order
+        self.player_ids: list[int] = []       # user IDs in join order (may repeat in test mode)
         self.faction_pool: set[str] = set()
-        self.assignments: dict[int, str] = {} # user_id -> faction name
+        self.assignments: dict[int, str] = {} # seat index -> faction name
         self.current_index: int = 0
         self.current_draw: list[str] = []
         self.state: str = "setup"             # setup | joining | drafting | done
         self.channel_id: int | None = None
+        self.test_mode: bool = False          # True when one person fills all seats
 
     @property
     def current_player_id(self) -> int | None:
@@ -34,6 +35,7 @@ class GameSession:
             "current_draw": self.current_draw,
             "state": self.state,
             "channel_id": self.channel_id,
+            "test_mode": self.test_mode,
         }
 
     @classmethod
@@ -46,6 +48,7 @@ class GameSession:
         s.current_draw = data["current_draw"]
         s.state = data["state"]
         s.channel_id = data.get("channel_id")
+        s.test_mode = data.get("test_mode", False)
         return s
 
 
