@@ -3,21 +3,23 @@ import json
 
 STATE_FILE = "game_state.json"
 
-game_sessions: dict[int, "GameSession"] = {}
+# guild_id -> { draft_name -> GameSession }
+game_sessions: dict[int, dict[str, "GameSession"]] = {}
 
 
 class GameSession:
-    def __init__(self, guild_id: int, host_id: int):
+    def __init__(self, guild_id: int, name: str, host_id: int):
         self.guild_id = guild_id
+        self.name = name                       # normalised lowercase draft name
         self.host_id = host_id
-        self.player_ids: list[int] = []       # user IDs in join order (may repeat in test mode)
+        self.player_ids: list[int] = []        # user IDs in join order (may repeat in test mode)
         self.faction_pool: set[str] = set()
-        self.assignments: dict[int, str] = {} # seat index -> faction name
+        self.assignments: dict[int, str] = {}  # seat index -> faction name
         self.current_index: int = 0
         self.current_draw: list[str] = []
-        self.state: str = "setup"             # setup | joining | drafting | done
+        self.state: str = "setup"              # setup | joining | drafting | done
         self.channel_id: int | None = None
-        self.test_mode: bool = False          # True when one person fills all seats
+        self.test_mode: bool = False           # True when one person fills all seats
 
     @property
     def current_player_id(self) -> int | None:
@@ -27,6 +29,7 @@ class GameSession:
 
     def to_dict(self) -> dict:
         return {
+            "name": self.name,
             "host_id": self.host_id,
             "player_ids": self.player_ids,
             "faction_pool": list(self.faction_pool),
@@ -40,7 +43,7 @@ class GameSession:
 
     @classmethod
     def from_dict(cls, guild_id: int, data: dict) -> "GameSession":
-        s = cls(guild_id=guild_id, host_id=data["host_id"])
+        s = cls(guild_id=guild_id, name=data["name"], host_id=data["host_id"])
         s.player_ids = data["player_ids"]
         s.faction_pool = set(data["faction_pool"])
         s.assignments = {int(k): v for k, v in data["assignments"].items()}
@@ -52,12 +55,37 @@ class GameSession:
         return s
 
 
+# ─── Session helpers ─────────────────────────────────────────────────────────
+
+def get_session(guild_id: int, name: str) -> "GameSession | None":
+    return game_sessions.get(guild_id, {}).get(name)
+
+
+def set_session(session: "GameSession"):
+    if session.guild_id not in game_sessions:
+        game_sessions[session.guild_id] = {}
+    game_sessions[session.guild_id][session.name] = session
+
+
+def delete_session(guild_id: int, name: str):
+    if guild_id in game_sessions:
+        game_sessions[guild_id].pop(name, None)
+        if not game_sessions[guild_id]:
+            del game_sessions[guild_id]
+
+
+# ─── Persistence ─────────────────────────────────────────────────────────────
+
 def save_state():
-    data = {
-        str(gid): s.to_dict()
-        for gid, s in game_sessions.items()
-        if s.state != "done"
-    }
+    data: dict = {}
+    for gid, drafts in game_sessions.items():
+        guild_data = {
+            name: session.to_dict()
+            for name, session in drafts.items()
+            if session.state != "done"
+        }
+        if guild_data:
+            data[str(gid)] = guild_data
     with open(STATE_FILE, "w") as f:
         json.dump(data, f, indent=2)
 

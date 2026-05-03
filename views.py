@@ -2,25 +2,26 @@ import discord
 from discord.ui import View, Button, Select
 
 from factions import FACTIONS
-from models import GameSession, game_sessions, save_state
+from models import GameSession, get_session, delete_session, save_state
 
 
 class PickButton(Button):
-    def __init__(self, guild_id: int, faction: str):
+    def __init__(self, guild_id: int, draft_name: str, faction: str):
         super().__init__(
             label=f"Choose {faction}",
             emoji=FACTIONS[faction]["emoji"],
             style=discord.ButtonStyle.primary,
-            custom_id=f"pick::{guild_id}::{faction}",
+            custom_id=f"pick::{guild_id}::{draft_name}::{faction}",
             row=0,
         )
         self.guild_id = guild_id
+        self.draft_name = draft_name
         self.faction_name = faction
 
     async def callback(self, interaction: discord.Interaction):
         # Lazy import breaks the views <-> game circular dependency
         from game import handle_pick
-        await handle_pick(interaction, self.guild_id, self.faction_name)
+        await handle_pick(interaction, self.guild_id, self.draft_name, self.faction_name)
 
 
 class DetailsButton(Button):
@@ -47,10 +48,10 @@ class DetailsButton(Button):
 class DraftView(View):
     """Persistent view (timeout=None) shown to each player during their pick turn."""
 
-    def __init__(self, guild_id: int, draw: list[str]):
+    def __init__(self, guild_id: int, draft_name: str, draw: list[str]):
         super().__init__(timeout=None)
         for faction in draw:
-            self.add_item(PickButton(guild_id, faction))
+            self.add_item(PickButton(guild_id, draft_name, faction))
         for faction in draw:
             self.add_item(DetailsButton(faction))
 
@@ -91,14 +92,15 @@ class FactionPoolSelect(View):
             if f in self.session.faction_pool
         )
         embed = discord.Embed(
-            title="Faction Pool Set",
-            description=f"**Available factions:**\n{pool_lines}\n\nPlayers can now use `/join` to enter the game.",
+            title=f"Faction Pool Set — **{self.session.name}**",
+            description=f"**Available factions:**\n{pool_lines}\n\nPlayers can now use `/joindraft name:{self.session.name}` to enter.",
             color=discord.Color.green(),
         )
         await interaction.response.edit_message(embed=embed, view=None)
 
     async def on_timeout(self):
         session = self.session
-        if game_sessions.get(session.guild_id) is session and session.state == "setup":
-            del game_sessions[session.guild_id]
+        existing = get_session(session.guild_id, session.name)
+        if existing is session and session.state == "setup":
+            delete_session(session.guild_id, session.name)
             save_state()

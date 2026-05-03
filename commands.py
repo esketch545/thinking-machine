@@ -3,29 +3,47 @@ from discord import app_commands
 from typing import Optional
 
 from bot import bot
-from models import GameSession, game_sessions, save_state
+from models import GameSession, game_sessions, get_session, set_session, delete_session, save_state
 from game import run_next_pick
 from views import FactionPoolSelect
 
 
-@bot.tree.command(name="newgame", description="Start a new Dune faction draft")
-@app_commands.describe(player_count="Solo testing: pre-fill this many seats so one person can run the full draft (1–5)")
-async def newgame(interaction: discord.Interaction, player_count: Optional[app_commands.Range[int, 1, 5]] = None):
+def _normalise(name: str) -> str:
+    return name.strip().lower()
+
+
+@bot.tree.command(name="newdraft", description="Start a new Dune faction draft")
+@app_commands.describe(
+    name="A short name for this draft (e.g. friday-night)",
+    player_count="Solo testing: pre-fill this many seats so one person can run the full draft (1–5)",
+)
+async def newdraft(
+    interaction: discord.Interaction,
+    name: str,
+    player_count: Optional[app_commands.Range[int, 1, 5]] = None,
+):
     gid = interaction.guild_id
-    existing = game_sessions.get(gid)
+    draft_name = _normalise(name)
+
+    if "::" in draft_name:
+        await interaction.response.send_message("Draft name cannot contain `::`.", ephemeral=True)
+        return
+
+    existing = get_session(gid, draft_name)
     if existing and existing.state != "done":
         await interaction.response.send_message(
-            "A game is already running. Use `/endgame` to cancel it.", ephemeral=True
+            f"A draft named **{draft_name}** is already running. Use `/enddraft` to cancel it.",
+            ephemeral=True,
         )
         return
 
-    session = GameSession(guild_id=gid, host_id=interaction.user.id)
+    session = GameSession(guild_id=gid, name=draft_name, host_id=interaction.user.id)
 
     if player_count is not None:
         session.player_ids = [interaction.user.id] * player_count
         session.test_mode = True
 
-    game_sessions[gid] = session
+    set_session(session)
 
     test_note = (
         f"\n\n**Solo test mode — {player_count} seat(s) pre-filled.** "
@@ -33,41 +51,43 @@ async def newgame(interaction: discord.Interaction, player_count: Optional[app_c
     ) if player_count else ""
 
     embed = discord.Embed(
-        title="New Dune Game",
+        title=f"New Draft — {draft_name}",
         description=f"Select which factions to include in the draw pool. You must select at least 3.{test_note}",
         color=discord.Color.blurple(),
     )
     await interaction.response.send_message(embed=embed, view=FactionPoolSelect(session))
 
 
-@bot.tree.command(name="join", description="Join the current Dune game")
-async def join(interaction: discord.Interaction):
+@bot.tree.command(name="joindraft", description="Join a Dune draft")
+@app_commands.describe(name="Name of the draft to join")
+async def joindraft(interaction: discord.Interaction, name: str):
     gid = interaction.guild_id
-    session = game_sessions.get(gid)
+    draft_name = _normalise(name)
+    session = get_session(gid, draft_name)
 
     if not session or session.state == "done":
         await interaction.response.send_message(
-            "No active game. Start one with `/newgame`.", ephemeral=True
+            f"No active draft named **{draft_name}**. Start one with `/newdraft`.", ephemeral=True
         )
         return
     if session.test_mode:
         await interaction.response.send_message(
-            "This game is in solo test mode — seats are pre-filled. Use `/startdraft` when ready.",
+            "This draft is in solo test mode — seats are pre-filled. Use `/startdraft` when ready.",
             ephemeral=True,
         )
         return
     if session.state != "joining":
         await interaction.response.send_message(
-            "The game is not accepting players right now.", ephemeral=True
+            f"Draft **{draft_name}** is not accepting players right now.", ephemeral=True
         )
         return
     if len(session.player_ids) >= 5:
         await interaction.response.send_message(
-            "The game is full (5 players max).", ephemeral=True
+            "This draft is full (5 players max).", ephemeral=True
         )
         return
     if interaction.user.id in session.player_ids:
-        await interaction.response.send_message("You've already joined!", ephemeral=True)
+        await interaction.response.send_message("You've already joined this draft!", ephemeral=True)
         return
 
     session.player_ids.append(interaction.user.id)
@@ -77,11 +97,10 @@ async def join(interaction: discord.Interaction):
     lines = []
     for i, uid in enumerate(session.player_ids):
         m = guild.get_member(uid)
-        name = m.display_name if m else f"<@{uid}>"
-        lines.append(f"{i + 1}. {name}")
+        lines.append(f"{i + 1}. {m.display_name if m else f'<@{uid}>'}")
 
     embed = discord.Embed(
-        title="Player Joined!",
+        title=f"[{draft_name}] Player Joined!",
         description=(
             f"**{interaction.user.display_name}** joined.\n\n"
             f"**Players ({len(session.player_ids)}/5):**\n" + "\n".join(lines)
@@ -91,19 +110,23 @@ async def join(interaction: discord.Interaction):
     await interaction.response.send_message(embed=embed)
 
 
-@bot.tree.command(name="startdraft", description="Begin the faction draft (host only)")
-async def startdraft(interaction: discord.Interaction):
+@bot.tree.command(name="startdraft", description="Begin a faction draft (host only)")
+@app_commands.describe(name="Name of the draft to start")
+async def startdraft(interaction: discord.Interaction, name: str):
     gid = interaction.guild_id
-    session = game_sessions.get(gid)
+    draft_name = _normalise(name)
+    session = get_session(gid, draft_name)
 
     if not session:
-        await interaction.response.send_message("No active game.", ephemeral=True)
+        await interaction.response.send_message(f"No draft named **{draft_name}**.", ephemeral=True)
         return
     if interaction.user.id != session.host_id:
         await interaction.response.send_message("Only the host can start the draft.", ephemeral=True)
         return
     if session.state != "joining":
-        await interaction.response.send_message("The game is not ready to start.", ephemeral=True)
+        await interaction.response.send_message(
+            f"Draft **{draft_name}** is not ready to start.", ephemeral=True
+        )
         return
     if not session.player_ids:
         await interaction.response.send_message("At least 1 player must join before starting.", ephemeral=True)
@@ -118,7 +141,7 @@ async def startdraft(interaction: discord.Interaction):
 
     await interaction.response.send_message(
         embed=discord.Embed(
-            title="The Draft Begins!",
+            title=f"Draft [{draft_name}] Begins!",
             description="Faction selection has started. May the best strategist win.",
             color=discord.Color.blurple(),
         )
@@ -126,30 +149,34 @@ async def startdraft(interaction: discord.Interaction):
     await run_next_pick(interaction.channel, session, interaction.guild)
 
 
-@bot.tree.command(name="endgame", description="Cancel the current game (host only)")
-async def endgame(interaction: discord.Interaction):
+@bot.tree.command(name="enddraft", description="Cancel a draft (host only)")
+@app_commands.describe(name="Name of the draft to cancel")
+async def enddraft(interaction: discord.Interaction, name: str):
     gid = interaction.guild_id
-    session = game_sessions.get(gid)
+    draft_name = _normalise(name)
+    session = get_session(gid, draft_name)
 
     if not session:
-        await interaction.response.send_message("No active game to cancel.", ephemeral=True)
+        await interaction.response.send_message(f"No draft named **{draft_name}**.", ephemeral=True)
         return
     if interaction.user.id != session.host_id:
-        await interaction.response.send_message("Only the host can cancel the game.", ephemeral=True)
+        await interaction.response.send_message("Only the host can cancel the draft.", ephemeral=True)
         return
 
-    del game_sessions[gid]
+    delete_session(gid, draft_name)
     save_state()
-    await interaction.response.send_message("Game cancelled.")
+    await interaction.response.send_message(f"Draft **{draft_name}** cancelled.")
 
 
-@bot.tree.command(name="players", description="Show the current player lineup")
-async def players_cmd(interaction: discord.Interaction):
+@bot.tree.command(name="draftplayers", description="Show the player lineup for a draft")
+@app_commands.describe(name="Name of the draft")
+async def draftplayers(interaction: discord.Interaction, name: str):
     gid = interaction.guild_id
-    session = game_sessions.get(gid)
+    draft_name = _normalise(name)
+    session = get_session(gid, draft_name)
 
     if not session:
-        await interaction.response.send_message("No active game.", ephemeral=True)
+        await interaction.response.send_message(f"No draft named **{draft_name}**.", ephemeral=True)
         return
 
     guild = interaction.guild
@@ -165,8 +192,33 @@ async def players_cmd(interaction: discord.Interaction):
         player_list = "\n".join(lines)
 
     embed = discord.Embed(
-        title="Current Players",
+        title=f"[{draft_name}] Players",
         description=player_list,
+        color=discord.Color.blurple(),
+    )
+    await interaction.response.send_message(embed=embed)
+
+
+@bot.tree.command(name="listdrafts", description="Show all active drafts in this server")
+async def listdrafts(interaction: discord.Interaction):
+    drafts = game_sessions.get(interaction.guild_id, {})
+    active = {n: s for n, s in drafts.items() if s.state != "done"}
+
+    if not active:
+        await interaction.response.send_message("No active drafts in this server.", ephemeral=True)
+        return
+
+    lines = []
+    for draft_name, session in active.items():
+        state_label = {"setup": "⏳ setting up", "joining": "🟢 open", "drafting": "🎲 in progress"}
+        lines.append(
+            f"**{draft_name}** — {state_label.get(session.state, session.state)} "
+            f"({len(session.player_ids)} player(s))"
+        )
+
+    embed = discord.Embed(
+        title="Active Drafts",
+        description="\n".join(lines),
         color=discord.Color.blurple(),
     )
     await interaction.response.send_message(embed=embed)

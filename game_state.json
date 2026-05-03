@@ -1,1 +1,29 @@
-{}
+{
+  "1500472114115776673": {
+    "evan-test-2": {
+      "name": "evan-test-2",
+      "host_id": 1500474728563998771,
+      "player_ids": [],
+      "faction_pool": [
+        "CHOAM",
+        "Tleilaxu",
+        "Spacing Guild",
+        "Bene Gesserit",
+        "Ecaz",
+        "Richese",
+        "Ixians",
+        "Harkonnen",
+        "Atreides",
+        "Emperor",
+        "Moritani",
+        "Fremen"
+      ],
+      "assignments": {},
+      "current_index": 0,
+      "current_draw": [],
+      "state": "joining",
+      "channel_id": null,
+      "test_mode": false
+    }
+  }
+}
