@@ -5,18 +5,18 @@
       "host_id": 1500474728563998771,
       "player_ids": [],
       "faction_pool": [
-        "CHOAM",
-        "Richese",
-        "Atreides",
-        "Fremen",
+        "Emperor",
         "Ecaz",
-        "Ixians",
-        "Bene Gesserit",
+        "Fremen",
         "Harkonnen",
-        "Tleilaxu",
         "Spacing Guild",
+        "Richese",
+        "Ixians",
+        "Tleilaxu",
+        "Atreides",
+        "Bene Gesserit",
         "Moritani",
-        "Emperor"
+        "CHOAM"
       ],
       "assignments": {},
       "current_index": 0,
@@ -30,11 +30,11 @@
       "host_id": 186141810207358985,
       "player_ids": [],
       "faction_pool": [
-        "Atreides",
         "Fremen",
-        "Bene Gesserit",
         "Harkonnen",
-        "Spacing Guild"
+        "Spacing Guild",
+        "Atreides",
+        "Bene Gesserit"
       ],
       "assignments": {},
       "current_index": 0,

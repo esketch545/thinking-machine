@@ -43,6 +43,15 @@ async def newdraft(
 
     existing = get_session(gid, draft_name)
     if existing and existing.state != "done":
+        if existing.state == "setup" and existing.host_id == interaction.user.id:
+            # View expired but draft still exists — re-show the faction selector
+            embed = discord.Embed(
+                title=f"New Draft — {draft_name}",
+                description="Select which factions to include in the draw pool. You must select at least 3.",
+                color=discord.Color.blurple(),
+            )
+            await interaction.response.send_message(embed=embed, view=FactionPoolSelect(existing))
+            return
         await interaction.response.send_message(
             f"A draft named **{draft_name}** is already running. Use `/enddraft` to cancel it.",
             ephemeral=True,
@@ -56,6 +65,7 @@ async def newdraft(
         session.test_mode = True
 
     set_session(session)
+    save_state()
 
     test_note = (
         f"\n\n**Solo test mode — {player_count} seat(s) pre-filled.** "

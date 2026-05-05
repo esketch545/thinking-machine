@@ -2,7 +2,7 @@ import discord
 from discord.ui import View, Button, Select
 
 from factions import FACTIONS
-from models import GameSession, get_session, delete_session, save_state
+from models import GameSession, save_state
 
 
 class PickButton(Button):
@@ -105,9 +105,3 @@ class FactionPoolSelect(View):
         )
         await interaction.response.edit_message(embed=embed, view=None)
 
-    async def on_timeout(self):
-        session = self.session
-        existing = get_session(session.guild_id, session.name)
-        if existing is session and session.state == "setup":
-            delete_session(session.guild_id, session.name)
-            save_state()
