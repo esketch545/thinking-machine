@@ -174,6 +174,11 @@ async def enddraft(interaction: discord.Interaction, name: str):
     if not session:
         await interaction.response.send_message(f"No draft named **{draft_name}**.", ephemeral=True)
         return
+    if session.state == "done":
+        await interaction.response.send_message(
+            f"Draft **{draft_name}** has already completed and cannot be cancelled.", ephemeral=True
+        )
+        return
     if interaction.user.id != session.host_id:
         await interaction.response.send_message("Only the host can cancel the draft.", ephemeral=True)
         return
