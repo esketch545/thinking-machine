@@ -1,8 +1,13 @@
+import os
 import discord
 from discord.ui import View, Button, Select
 
 from factions import FACTIONS
 from models import GameSession, save_state
+
+_PDF_DIR = os.path.join(os.path.dirname(__file__), "pdfs")
+_RULES_PDF = os.path.join(_PDF_DIR, "rules.pdf")
+_ERRATA_PDF = os.path.join(_PDF_DIR, "errata.pdf")
 
 
 class PickButton(Button):
@@ -41,8 +46,20 @@ class DetailsButton(Button):
             description=data["description"],
             color=discord.Color(data["color"]),
         )
-        embed.add_field(name="Rules PDF", value=data["pdf_url"])
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+        files = []
+        if os.path.exists(_ERRATA_PDF):
+            files.append(discord.File(_ERRATA_PDF, filename="DuneErrata.pdf"))
+        if os.path.exists(_RULES_PDF):
+            files.append(discord.File(_RULES_PDF, filename="DuneRules.pdf"))
+
+        try:
+            await interaction.response.send_message(embed=embed, files=files, ephemeral=True)
+        except discord.HTTPException:
+            # Rules PDF likely exceeded the server's file size limit — send without it
+            files_small = [f for f in files if f.filename != "DuneRules.pdf"]
+            embed.set_footer(text="Full rules PDF is too large to attach on this server.")
+            await interaction.response.send_message(embed=embed, files=files_small, ephemeral=True)
 
 
 class DraftView(View):
