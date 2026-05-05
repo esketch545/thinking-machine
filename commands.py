@@ -12,6 +12,18 @@ def _normalise(name: str) -> str:
     return name.strip().lower()
 
 
+async def _active_drafts_autocomplete(
+    interaction: discord.Interaction,
+    current: str,
+) -> list[app_commands.Choice[str]]:
+    drafts = game_sessions.get(interaction.guild_id, {})
+    return [
+        app_commands.Choice(name=name, value=name)
+        for name, session in drafts.items()
+        if session.state != "done" and current.lower() in name
+    ][:25]
+
+
 @bot.tree.command(name="newdraft", description="Start a new Dune faction draft")
 @app_commands.describe(
     name="A short name for this draft (e.g. friday-night)",
@@ -60,6 +72,7 @@ async def newdraft(
 
 @bot.tree.command(name="joindraft", description="Join a Dune draft")
 @app_commands.describe(name="Name of the draft to join")
+@app_commands.autocomplete(name=_active_drafts_autocomplete)
 async def joindraft(interaction: discord.Interaction, name: str):
     gid = interaction.guild_id
     draft_name = _normalise(name)
@@ -112,6 +125,7 @@ async def joindraft(interaction: discord.Interaction, name: str):
 
 @bot.tree.command(name="startdraft", description="Begin a faction draft (host only)")
 @app_commands.describe(name="Name of the draft to start")
+@app_commands.autocomplete(name=_active_drafts_autocomplete)
 async def startdraft(interaction: discord.Interaction, name: str):
     gid = interaction.guild_id
     draft_name = _normalise(name)
@@ -151,6 +165,7 @@ async def startdraft(interaction: discord.Interaction, name: str):
 
 @bot.tree.command(name="enddraft", description="Cancel a draft (host only)")
 @app_commands.describe(name="Name of the draft to cancel")
+@app_commands.autocomplete(name=_active_drafts_autocomplete)
 async def enddraft(interaction: discord.Interaction, name: str):
     gid = interaction.guild_id
     draft_name = _normalise(name)
@@ -170,6 +185,7 @@ async def enddraft(interaction: discord.Interaction, name: str):
 
 @bot.tree.command(name="draftplayers", description="Show the player lineup for a draft")
 @app_commands.describe(name="Name of the draft")
+@app_commands.autocomplete(name=_active_drafts_autocomplete)
 async def draftplayers(interaction: discord.Interaction, name: str):
     gid = interaction.guild_id
     draft_name = _normalise(name)
