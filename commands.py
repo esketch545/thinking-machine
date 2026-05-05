@@ -224,12 +224,15 @@ async def listdrafts(interaction: discord.Interaction):
         await interaction.response.send_message("No active drafts in this server.", ephemeral=True)
         return
 
+    guild = interaction.guild
+    state_label = {"setup": "⏳ setting up", "joining": "🟢 open", "drafting": "🎲 in progress"}
     lines = []
     for draft_name, session in active.items():
-        state_label = {"setup": "⏳ setting up", "joining": "🟢 open", "drafting": "🎲 in progress"}
+        host = guild.get_member(session.host_id)
+        host_name = host.display_name if host else f"<@{session.host_id}>"
         lines.append(
             f"**{draft_name}** — {state_label.get(session.state, session.state)} "
-            f"({len(session.player_ids)} player(s))"
+            f"· {len(session.player_ids)} player(s) · host: {host_name}"
         )
 
     embed = discord.Embed(
