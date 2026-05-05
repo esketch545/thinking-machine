@@ -90,7 +90,6 @@ class FactionPoolSelect(View):
             return
 
         self.session.faction_pool = set(self.select.values)
-        self.session.state = "joining"
         save_state()
 
         pool_lines = "\n".join(
@@ -99,8 +98,8 @@ class FactionPoolSelect(View):
             if f in self.session.faction_pool
         )
         embed = discord.Embed(
-            title=f"Faction Pool Set — **{self.session.name}**",
-            description=f"**Available factions:**\n{pool_lines}\n\nPlayers can now use `/joindraft name:{self.session.name}` to enter.",
+            title=f"Faction Pool Updated — **{self.session.name}**",
+            description=f"**Factions in pool:**\n{pool_lines}\n\nPlayers can join with `/joindraft name:{self.session.name}`.",
             color=discord.Color.green(),
         )
         await interaction.response.edit_message(embed=embed, view=None)

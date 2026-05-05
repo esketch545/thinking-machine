@@ -17,7 +17,7 @@ class GameSession:
         self.assignments: dict[int, str] = {}  # seat index -> faction name
         self.current_index: int = 0
         self.current_draw: list[str] = []
-        self.state: str = "setup"              # setup | joining | drafting | done
+        self.state: str = "joining"             # joining | drafting | done
         self.channel_id: int | None = None
         self.test_mode: bool = False           # True when one person fills all seats
 

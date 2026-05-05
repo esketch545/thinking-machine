@@ -3,6 +3,7 @@ from discord import app_commands
 from typing import Optional
 
 from bot import bot
+from factions import FACTIONS
 from models import GameSession, game_sessions, get_session, set_session, delete_session, save_state
 from game import run_next_pick
 from views import FactionPoolSelect
@@ -43,15 +44,6 @@ async def newdraft(
 
     existing = get_session(gid, draft_name)
     if existing and existing.state != "done":
-        if existing.state == "setup" and existing.host_id == interaction.user.id:
-            # View expired but draft still exists — re-show the faction selector
-            embed = discord.Embed(
-                title=f"New Draft — {draft_name}",
-                description="Select which factions to include in the draw pool. You must select at least 3.",
-                color=discord.Color.blurple(),
-            )
-            await interaction.response.send_message(embed=embed, view=FactionPoolSelect(existing))
-            return
         await interaction.response.send_message(
             f"A draft named **{draft_name}** is already running. Use `/enddraft` to cancel it.",
             ephemeral=True,
@@ -59,6 +51,8 @@ async def newdraft(
         return
 
     session = GameSession(guild_id=gid, name=draft_name, host_id=interaction.user.id)
+    session.faction_pool = set(FACTIONS.keys())  # all factions selected by default
+    session.state = "joining"                     # immediately open for players to join
 
     if player_count is not None:
         session.player_ids = [interaction.user.id] * player_count
@@ -68,14 +62,16 @@ async def newdraft(
     save_state()
 
     test_note = (
-        f"\n\n**Solo test mode — {player_count} seat(s) pre-filled.** "
-        "Select the faction pool, then use `/startdraft`."
+        f"\n\n**Solo test mode — {player_count} seat(s) pre-filled.**"
     ) if player_count else ""
 
     embed = discord.Embed(
-        title=f"New Draft — {draft_name}",
-        description=f"Select which factions to include in the draw pool. You must select at least 3.{test_note}",
-        color=discord.Color.blurple(),
+        title=f"Draft Created — {draft_name}",
+        description=(
+            f"The draft is open! Players can join with `/joindraft name:{draft_name}`.\n\n"
+            f"All factions are in the pool by default. Use the selector below to remove any before starting.{test_note}"
+        ),
+        color=discord.Color.green(),
     )
     await interaction.response.send_message(embed=embed, view=FactionPoolSelect(session))
 
@@ -96,6 +92,12 @@ async def joindraft(interaction: discord.Interaction, name: str):
     if session.test_mode:
         await interaction.response.send_message(
             "This draft is in solo test mode — seats are pre-filled. Use `/startdraft` when ready.",
+            ephemeral=True,
+        )
+        return
+    if session.state == "drafting":
+        await interaction.response.send_message(
+            f"Draft **{draft_name}** has already started — the pick sequence is underway and no new players can join.",
             ephemeral=True,
         )
         return
@@ -147,16 +149,28 @@ async def startdraft(interaction: discord.Interaction, name: str):
     if interaction.user.id != session.host_id:
         await interaction.response.send_message("Only the host can start the draft.", ephemeral=True)
         return
-    if session.state != "joining":
+    if session.state == "drafting":
         await interaction.response.send_message(
-            f"Draft **{draft_name}** is not ready to start.", ephemeral=True
+            f"Draft **{draft_name}** is already in progress.", ephemeral=True
         )
         return
-    if not session.player_ids:
-        await interaction.response.send_message("At least 1 player must join before starting.", ephemeral=True)
+    if session.state == "done":
+        await interaction.response.send_message(
+            f"Draft **{draft_name}** has already completed.", ephemeral=True
+        )
         return
+
+    blockers = []
+    if not session.player_ids:
+        blockers.append("• At least 1 player must join with `/joindraft`")
     if len(session.faction_pool) < 3:
-        await interaction.response.send_message("The faction pool needs at least 3 factions.", ephemeral=True)
+        blockers.append(f"• At least 3 factions must be in the pool (currently {len(session.faction_pool)})")
+
+    if blockers:
+        await interaction.response.send_message(
+            f"Draft **{draft_name}** can't start yet:\n" + "\n".join(blockers),
+            ephemeral=True,
+        )
         return
 
     session.state = "drafting"

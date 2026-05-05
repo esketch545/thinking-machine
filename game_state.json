@@ -5,18 +5,18 @@
       "host_id": 1500474728563998771,
       "player_ids": [],
       "faction_pool": [
-        "Emperor",
-        "Ecaz",
-        "Fremen",
-        "Harkonnen",
+        "CHOAM",
         "Spacing Guild",
         "Richese",
+        "Bene Gesserit",
+        "Atreides",
+        "Fremen",
+        "Moritani",
+        "Emperor",
+        "Harkonnen",
         "Ixians",
         "Tleilaxu",
-        "Atreides",
-        "Bene Gesserit",
-        "Moritani",
-        "CHOAM"
+        "Ecaz"
       ],
       "assignments": {},
       "current_index": 0,
@@ -30,17 +30,47 @@
       "host_id": 186141810207358985,
       "player_ids": [],
       "faction_pool": [
-        "Fremen",
-        "Harkonnen",
         "Spacing Guild",
+        "Bene Gesserit",
         "Atreides",
-        "Bene Gesserit"
+        "Fremen",
+        "Harkonnen"
       ],
       "assignments": {},
       "current_index": 0,
       "current_draw": [],
       "state": "joining",
       "channel_id": null,
+      "test_mode": false
+    },
+    "test-2": {
+      "name": "test-2",
+      "host_id": 186141810207358985,
+      "player_ids": [
+        186141810207358985,
+        1500474728563998771
+      ],
+      "faction_pool": [
+        "Bene Gesserit",
+        "Richese",
+        "Fremen",
+        "Harkonnen",
+        "Emperor",
+        "Ixians",
+        "Tleilaxu",
+        "Ecaz"
+      ],
+      "assignments": {
+        "0": "Spacing Guild"
+      },
+      "current_index": 1,
+      "current_draw": [
+        "CHOAM",
+        "Atreides",
+        "Moritani"
+      ],
+      "state": "drafting",
+      "channel_id": 1500472115047170200,
       "test_mode": false
     }
   }

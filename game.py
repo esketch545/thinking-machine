@@ -138,6 +138,10 @@ async def load_and_restore():
         guild_id = int(guild_id_str)
         for draft_name, session_data in drafts.items():
             session = GameSession.from_dict(guild_id, session_data)
+            if session.state == "setup":
+                session.state = "joining"
+                if not session.faction_pool:
+                    session.faction_pool = set(FACTIONS.keys())
             set_session(session)
 
             if session.state == "drafting" and session.current_draw:
