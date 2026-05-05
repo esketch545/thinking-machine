@@ -69,6 +69,7 @@ class FactionPoolSelect(View):
                 value=name,
                 emoji=data["emoji"],
                 description=data["description"][:97] + "..." if len(data["description"]) > 100 else data["description"],
+                default=True,
             )
             for name, data in FACTIONS.items()
         ]
