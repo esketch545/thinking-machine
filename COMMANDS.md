@@ -18,8 +18,10 @@ Creates a new faction draft and opens the faction pool selector.
 **Notes**
 - Only one draft per name can be active at a time in a server.
 - The person who runs this command becomes the **host** and is the only one who can start or cancel the draft.
-- After running the command, a dropdown appears to select which factions enter the draw pool. At least 3 must be selected.
+- A dedicated text channel (e.g. `#draft-friday-night`) is automatically created in the same category as where the command was run. All faction selection and pick messages appear there.
+- After running the command, a faction pool selector appears in the new channel. At least 3 factions must be selected.
 - If `player_count` is provided the draft enters **solo test mode**: seats are pre-filled with your account and turn enforcement is bypassed so you can pick for every seat yourself.
+- Requires the bot to have the **Manage Channels** permission to create the draft channel.
 
 **Examples**
 ```
@@ -69,21 +71,23 @@ Begins the faction pick sequence. Only the host can run this.
 
 ---
 
-## `/enddraft`
+## `/canceldraft`
 
-Cancels and removes a draft. Only the host can run this.
+Cancels and removes a draft, and deletes its dedicated channel. Only the host can run this.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `name` | string | Yes | Name of the draft to cancel |
 
 **Notes**
-- Works at any stage — setup, joining, or mid-draft.
+- Works at any stage — joining or mid-draft.
+- The dedicated draft channel (e.g. `#draft-friday-night`) is deleted automatically.
 - Once cancelled, a new draft with the same name can be created immediately.
+- Cannot cancel a draft that has already completed.
 
 **Example**
 ```
-/enddraft name:friday-night
+/canceldraft name:friday-night
 ```
 
 ---
@@ -133,17 +137,18 @@ Lists all active drafts in the server with their current status and player count
 ## Draft Flow
 
 ```
-/newdraft  →  (select faction pool)  →  /joindraft (×N players)  →  /startdraft  →  picks  →  final results
+/newdraft  →  #draft-<name> created  →  (select faction pool)  →  /joindraft (×N players)  →  /startdraft  →  picks  →  final results
 ```
 
-1. Host runs `/newdraft name:<name>` and selects factions from the dropdown
-2. Players run `/joindraft name:<name>` in the order they want to pick (first come, first served)
-3. Host runs `/startdraft name:<name>`
-4. The bot draws 3 factions for the current player
-5. That player clicks **Details** to read about a faction (visible only to them), then **Choose** to pick one
-6. The chosen faction is removed from the pool; the other 2 return to it
-7. Steps 4–6 repeat for each player
-8. Once all players have picked, the bot posts the final assignment list
+1. Host runs `/newdraft name:<name>` — a dedicated `#draft-<name>` channel is created automatically
+2. Host adjusts the faction pool via the dropdown in the new channel (all 12 factions selected by default)
+3. Players run `/joindraft name:<name>` in the order they want to pick (first come, first served)
+4. Host runs `/startdraft name:<name>`
+5. The bot draws 3 factions for the current player in the draft channel
+6. That player clicks **Details** to read about a faction (visible only to them), then **Choose** to pick one
+7. The chosen faction is removed from the pool; the other 2 return to it
+8. Steps 5–7 repeat for each player
+9. Once all players have picked, the bot posts the final assignment list in the draft channel
 
 ### Faction pool math
 

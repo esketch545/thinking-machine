@@ -1,3 +1,4 @@
+import re
 import discord
 from discord import app_commands
 from typing import Optional
@@ -45,7 +46,7 @@ async def newdraft(
     existing = get_session(gid, draft_name)
     if existing and existing.state != "done":
         await interaction.response.send_message(
-            f"A draft named **{draft_name}** is already running. Use `/enddraft` to cancel it.",
+            f"A draft named **{draft_name}** is already running. Use `/canceldraft` to cancel it.",
             ephemeral=True,
         )
         return
@@ -57,6 +58,20 @@ async def newdraft(
     if player_count is not None:
         session.player_ids = [interaction.user.id] * player_count
         session.test_mode = True
+
+    # Create a dedicated text channel for this draft
+    channel_name = "draft-" + re.sub(r"[^a-z0-9_-]", "-", draft_name.replace(" ", "-"))
+    draft_channel = None
+    await interaction.response.defer(ephemeral=True)
+    try:
+        draft_channel = await interaction.guild.create_text_channel(
+            channel_name,
+            category=interaction.channel.category,
+            topic=f"Dune faction draft: {draft_name}",
+        )
+        session.draft_channel_id = draft_channel.id
+    except discord.Forbidden:
+        pass  # bot lacks Manage Channels — fall back to current channel
 
     set_session(session)
     save_state()
@@ -73,7 +88,20 @@ async def newdraft(
         ),
         color=discord.Color.green(),
     )
-    await interaction.response.send_message(embed=embed, view=FactionPoolSelect(session))
+
+    target = draft_channel or interaction.channel
+    await target.send(embed=embed, view=FactionPoolSelect(session))
+
+    if draft_channel:
+        await interaction.followup.send(
+            f"Draft **{draft_name}** created! Head to {draft_channel.mention} to set up factions and track picks.",
+            ephemeral=True,
+        )
+    else:
+        await interaction.followup.send(
+            "Draft created (couldn't create a dedicated channel — missing Manage Channels permission).",
+            ephemeral=True,
+        )
 
 
 @bot.tree.command(name="joindraft", description="Join a Dune draft")
@@ -174,7 +202,8 @@ async def startdraft(interaction: discord.Interaction, name: str):
         return
 
     session.state = "drafting"
-    session.channel_id = interaction.channel_id
+    pick_channel = bot.get_channel(session.draft_channel_id) if session.draft_channel_id else interaction.channel
+    session.channel_id = pick_channel.id
     save_state()
 
     await interaction.response.send_message(
@@ -184,13 +213,13 @@ async def startdraft(interaction: discord.Interaction, name: str):
             color=discord.Color.blurple(),
         )
     )
-    await run_next_pick(interaction.channel, session, interaction.guild)
+    await run_next_pick(pick_channel, session, interaction.guild)
 
 
-@bot.tree.command(name="enddraft", description="Cancel a draft (host only)")
+@bot.tree.command(name="canceldraft", description="Cancel a draft and delete its channel (host only)")
 @app_commands.describe(name="Name of the draft to cancel")
 @app_commands.autocomplete(name=_active_drafts_autocomplete)
-async def enddraft(interaction: discord.Interaction, name: str):
+async def canceldraft(interaction: discord.Interaction, name: str):
     gid = interaction.guild_id
     draft_name = _normalise(name)
     session = get_session(gid, draft_name)
@@ -207,9 +236,19 @@ async def enddraft(interaction: discord.Interaction, name: str):
         await interaction.response.send_message("Only the host can cancel the draft.", ephemeral=True)
         return
 
+    draft_channel_id = session.draft_channel_id
     delete_session(gid, draft_name)
     save_state()
+
     await interaction.response.send_message(f"Draft **{draft_name}** cancelled.")
+
+    if draft_channel_id:
+        channel = bot.get_channel(draft_channel_id)
+        if channel:
+            try:
+                await channel.delete(reason=f"Draft '{draft_name}' cancelled by host")
+            except (discord.Forbidden, discord.NotFound):
+                pass
 
 
 @bot.tree.command(name="draftplayers", description="Show the player lineup for a draft")
