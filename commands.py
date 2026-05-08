@@ -14,15 +14,61 @@ def _normalise(name: str) -> str:
     return name.strip().lower()
 
 
+def _get_session_for_channel(guild_id: int, channel_id: int) -> "GameSession | None":
+    for session in game_sessions.get(guild_id, {}).values():
+        if session.draft_channel_id == channel_id:
+            return session
+    return None
+
+
+def _resolve_draft_name(
+    guild_id: int, channel_id: int, name: str | None
+) -> tuple[str | None, str | None]:
+    """Returns (draft_name, error). If error is set, send it and return early."""
+    if name is None:
+        session = _get_session_for_channel(guild_id, channel_id)
+        if not session:
+            return None, "Specify a draft name, or run this command from inside a draft channel."
+        return session.name, None
+    draft_name = _normalise(name)
+    channel_session = _get_session_for_channel(guild_id, channel_id)
+    if channel_session and channel_session.name != draft_name:
+        return None, (
+            f"You're in the **{channel_session.name}** draft channel — "
+            f"you can only run commands for that draft here."
+        )
+    return draft_name, None
+
+
 async def _active_drafts_autocomplete(
     interaction: discord.Interaction,
     current: str,
 ) -> list[app_commands.Choice[str]]:
-    drafts = game_sessions.get(interaction.guild_id, {})
+    gid = interaction.guild_id
+    channel_session = _get_session_for_channel(gid, interaction.channel_id)
+    if channel_session and channel_session.state != "done":
+        return [app_commands.Choice(name=channel_session.name, value=channel_session.name)]
+    drafts = game_sessions.get(gid, {})
     return [
         app_commands.Choice(name=name, value=name)
         for name, session in drafts.items()
         if session.state != "done" and current.lower() in name
+    ][:25]
+
+
+async def _all_drafts_autocomplete(
+    interaction: discord.Interaction,
+    current: str,
+) -> list[app_commands.Choice[str]]:
+    gid = interaction.guild_id
+    channel_session = _get_session_for_channel(gid, interaction.channel_id)
+    if channel_session:
+        return [app_commands.Choice(name=channel_session.name, value=channel_session.name)]
+    drafts = game_sessions.get(gid, {})
+    return [
+        app_commands.Choice(name=name, value=name)
+        for name in drafts
+        if current.lower() in name
     ][:25]
 
 
@@ -83,7 +129,7 @@ async def newdraft(
     embed = discord.Embed(
         title=f"Draft Created — {draft_name}",
         description=(
-            f"The draft is open! Players can join with `/joindraft name:{draft_name}`.\n\n"
+            f"The draft is open! Players must join from this channel using `/joindraft` — first come, first served.\n\n"
             f"All factions are in the pool by default. Use the selector below to remove any before starting.{test_note}"
         ),
         color=discord.Color.green(),
@@ -105,16 +151,27 @@ async def newdraft(
 
 
 @bot.tree.command(name="joindraft", description="Join a Dune draft")
-@app_commands.describe(name="Name of the draft to join")
+@app_commands.describe(name="Draft to join (omit if running from inside the draft channel)")
 @app_commands.autocomplete(name=_active_drafts_autocomplete)
-async def joindraft(interaction: discord.Interaction, name: str):
+async def joindraft(interaction: discord.Interaction, name: Optional[str] = None):
     gid = interaction.guild_id
-    draft_name = _normalise(name)
+    draft_name, err = _resolve_draft_name(gid, interaction.channel_id, name)
+    if err:
+        await interaction.response.send_message(err, ephemeral=True)
+        return
     session = get_session(gid, draft_name)
 
     if not session or session.state == "done":
         await interaction.response.send_message(
             f"No active draft named **{draft_name}**. Start one with `/newdraft`.", ephemeral=True
+        )
+        return
+    if session.draft_channel_id and interaction.channel_id != session.draft_channel_id:
+        draft_channel = bot.get_channel(session.draft_channel_id)
+        mention = draft_channel.mention if draft_channel else f"the draft channel"
+        await interaction.response.send_message(
+            f"You must be in {mention} to join this draft — first come, first served.",
+            ephemeral=True,
         )
         return
     if session.test_mode:
@@ -164,11 +221,14 @@ async def joindraft(interaction: discord.Interaction, name: str):
 
 
 @bot.tree.command(name="startdraft", description="Begin a faction draft (host only)")
-@app_commands.describe(name="Name of the draft to start")
+@app_commands.describe(name="Draft to start (omit if running from inside the draft channel)")
 @app_commands.autocomplete(name=_active_drafts_autocomplete)
-async def startdraft(interaction: discord.Interaction, name: str):
+async def startdraft(interaction: discord.Interaction, name: Optional[str] = None):
     gid = interaction.guild_id
-    draft_name = _normalise(name)
+    draft_name, err = _resolve_draft_name(gid, interaction.channel_id, name)
+    if err:
+        await interaction.response.send_message(err, ephemeral=True)
+        return
     session = get_session(gid, draft_name)
 
     if not session:
@@ -217,11 +277,14 @@ async def startdraft(interaction: discord.Interaction, name: str):
 
 
 @bot.tree.command(name="canceldraft", description="Cancel a draft and delete its channel (host only)")
-@app_commands.describe(name="Name of the draft to cancel")
+@app_commands.describe(name="Draft to cancel (omit if running from inside the draft channel)")
 @app_commands.autocomplete(name=_active_drafts_autocomplete)
-async def canceldraft(interaction: discord.Interaction, name: str):
+async def canceldraft(interaction: discord.Interaction, name: Optional[str] = None):
     gid = interaction.guild_id
-    draft_name = _normalise(name)
+    draft_name, err = _resolve_draft_name(gid, interaction.channel_id, name)
+    if err:
+        await interaction.response.send_message(err, ephemeral=True)
+        return
     session = get_session(gid, draft_name)
 
     if not session:
@@ -252,11 +315,14 @@ async def canceldraft(interaction: discord.Interaction, name: str):
 
 
 @bot.tree.command(name="draftplayers", description="Show the player lineup for a draft")
-@app_commands.describe(name="Name of the draft")
+@app_commands.describe(name="Draft to inspect (omit if running from inside the draft channel)")
 @app_commands.autocomplete(name=_active_drafts_autocomplete)
-async def draftplayers(interaction: discord.Interaction, name: str):
+async def draftplayers(interaction: discord.Interaction, name: Optional[str] = None):
     gid = interaction.guild_id
-    draft_name = _normalise(name)
+    draft_name, err = _resolve_draft_name(gid, interaction.channel_id, name)
+    if err:
+        await interaction.response.send_message(err, ephemeral=True)
+        return
     session = get_session(gid, draft_name)
 
     if not session:
@@ -281,6 +347,71 @@ async def draftplayers(interaction: discord.Interaction, name: str):
         color=discord.Color.blurple(),
     )
     await interaction.response.send_message(embed=embed)
+
+
+@bot.tree.command(name="cleanupdraft", description="Delete a draft's dedicated channel after it's done")
+@app_commands.describe(name="Draft whose channel to delete (omit if running from inside the draft channel)")
+@app_commands.autocomplete(name=_all_drafts_autocomplete)
+async def cleanupdraft(interaction: discord.Interaction, name: Optional[str] = None):
+    gid = interaction.guild_id
+    draft_name, err = _resolve_draft_name(gid, interaction.channel_id, name)
+
+    if err:
+        # Session may be gone post-restart but channel still exists — delete it directly
+        ch = interaction.channel
+        if isinstance(ch, discord.TextChannel) and ch.name.startswith("draft-"):
+            await interaction.response.send_message(
+                "No active session for this channel — deleting orphaned draft channel.", ephemeral=True
+            )
+            try:
+                await ch.delete(reason="Orphaned draft channel cleaned up")
+            except (discord.Forbidden, discord.NotFound):
+                pass
+            return
+        await interaction.response.send_message(err, ephemeral=True)
+        return
+
+    session = get_session(gid, draft_name)
+
+    if not session:
+        # Session gone post-restart; if we're in the channel, just delete it
+        ch = interaction.channel
+        if isinstance(ch, discord.TextChannel) and ch.name.startswith("draft-"):
+            await interaction.response.send_message(
+                "Session no longer active — deleting orphaned draft channel.", ephemeral=True
+            )
+            try:
+                await ch.delete(reason=f"Orphaned draft channel for '{draft_name}' cleaned up")
+            except (discord.Forbidden, discord.NotFound):
+                pass
+            return
+        await interaction.response.send_message(f"No draft named **{draft_name}** found.", ephemeral=True)
+        return
+
+    if interaction.user.id != session.host_id:
+        await interaction.response.send_message("Only the host can clean up this draft.", ephemeral=True)
+        return
+
+    if not session.draft_channel_id:
+        await interaction.response.send_message("This draft has no dedicated channel.", ephemeral=True)
+        return
+
+    channel = bot.get_channel(session.draft_channel_id)
+    if not channel:
+        session.draft_channel_id = None
+        save_state()
+        await interaction.response.send_message("Draft channel was already deleted.", ephemeral=True)
+        return
+
+    session.draft_channel_id = None
+    save_state()
+    await interaction.response.send_message(
+        f"Deleting draft channel for **{draft_name}**.", ephemeral=True
+    )
+    try:
+        await channel.delete(reason=f"Draft '{draft_name}' channel cleaned up by host")
+    except (discord.Forbidden, discord.NotFound):
+        pass
 
 
 @bot.tree.command(name="listdrafts", description="Show all active drafts in this server")

@@ -4,14 +4,15 @@
       "name": "test-3",
       "host_id": 186141810207358985,
       "player_ids": [
-        186141810207358985
+        186141810207358985,
+        148839614029889536
       ],
       "faction_pool": [
-        "Bene Gesserit",
-        "Harkonnen",
-        "Spacing Guild",
         "Fremen",
-        "Atreides"
+        "Bene Gesserit",
+        "Atreides",
+        "Harkonnen",
+        "Spacing Guild"
       ],
       "assignments": {},
       "current_index": 0,
@@ -24,26 +25,29 @@
     "test4": {
       "name": "test4",
       "host_id": 186141810207358985,
-      "player_ids": [],
+      "player_ids": [
+        148839614029889536
+      ],
       "faction_pool": [
-        "Ixians",
-        "Bene Gesserit",
-        "Moritani",
-        "Harkonnen",
-        "Spacing Guild",
-        "CHOAM",
-        "Richese",
-        "Fremen",
-        "Emperor",
         "Tleilaxu",
+        "Spacing Guild",
+        "Fremen",
+        "Richese",
+        "Moritani",
         "Atreides",
-        "Ecaz"
+        "Ecaz",
+        "Harkonnen",
+        "Bene Gesserit"
       ],
       "assignments": {},
       "current_index": 0,
-      "current_draw": [],
-      "state": "joining",
-      "channel_id": null,
+      "current_draw": [
+        "Emperor",
+        "CHOAM",
+        "Ixians"
+      ],
+      "state": "drafting",
+      "channel_id": 1502154573161168978,
       "draft_channel_id": 1502154573161168978,
       "test_mode": false
     }
