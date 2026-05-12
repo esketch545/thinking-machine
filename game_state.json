@@ -1,1 +1,30 @@
-{}
+{
+  "1500472114115776673": {
+    "rename-test": {
+      "name": "rename-test",
+      "host_id": 186141810207358985,
+      "player_ids": [],
+      "faction_pool": [
+        "Harkonnen",
+        "Ixians",
+        "CHOAM",
+        "Bene Gesserit",
+        "Tleilaxu",
+        "Atreides",
+        "Ecaz",
+        "Fremen",
+        "Moritani",
+        "Richese",
+        "Spacing Guild",
+        "Emperor"
+      ],
+      "assignments": {},
+      "current_index": 0,
+      "current_draw": [],
+      "state": "joining",
+      "channel_id": null,
+      "draft_channel_id": 1502228289203212379,
+      "test_mode": false
+    }
+  }
+}

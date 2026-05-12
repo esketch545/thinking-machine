@@ -349,6 +349,71 @@ async def draftplayers(interaction: discord.Interaction, name: Optional[str] = N
     await interaction.response.send_message(embed=embed)
 
 
+@bot.tree.command(name="renamedraft", description="Rename a draft and its channel (host only, before picks start)")
+@app_commands.describe(
+    new_name="The new name for this draft",
+    name="Draft to rename (omit if running from inside the draft channel)",
+)
+@app_commands.autocomplete(name=_active_drafts_autocomplete)
+async def renamedraft(interaction: discord.Interaction, new_name: str, name: Optional[str] = None):
+    gid = interaction.guild_id
+    draft_name, err = _resolve_draft_name(gid, interaction.channel_id, name)
+    if err:
+        await interaction.response.send_message(err, ephemeral=True)
+        return
+    session = get_session(gid, draft_name)
+
+    if not session:
+        await interaction.response.send_message(f"No draft named **{draft_name}**.", ephemeral=True)
+        return
+    if interaction.user.id != session.host_id:
+        await interaction.response.send_message("Only the host can rename the draft.", ephemeral=True)
+        return
+    if session.state != "joining":
+        await interaction.response.send_message(
+            "Drafts can only be renamed before picks start.", ephemeral=True
+        )
+        return
+
+    new_draft_name = _normalise(new_name)
+    if "::" in new_draft_name:
+        await interaction.response.send_message("Draft name cannot contain `::`.", ephemeral=True)
+        return
+    if new_draft_name == draft_name:
+        await interaction.response.send_message("That's already the name.", ephemeral=True)
+        return
+    existing = get_session(gid, new_draft_name)
+    if existing and existing.state != "done":
+        await interaction.response.send_message(
+            f"A draft named **{new_draft_name}** is already running.", ephemeral=True
+        )
+        return
+
+    await interaction.response.defer(ephemeral=True)
+
+    delete_session(gid, draft_name)
+    session.name = new_draft_name
+    set_session(session)
+
+    if session.draft_channel_id:
+        channel = bot.get_channel(session.draft_channel_id)
+        if channel:
+            new_channel_name = "draft-" + re.sub(r"[^a-z0-9_-]", "-", new_draft_name.replace(" ", "-"))
+            try:
+                await channel.edit(
+                    name=new_channel_name,
+                    topic=f"Dune faction draft: {new_draft_name}",
+                    reason=f"Draft renamed from '{draft_name}' to '{new_draft_name}'",
+                )
+            except discord.Forbidden:
+                pass
+
+    save_state()
+    await interaction.followup.send(
+        f"Draft renamed from **{draft_name}** to **{new_draft_name}**.", ephemeral=True
+    )
+
+
 @bot.tree.command(name="cleanupdraft", description="Delete a draft's dedicated channel after it's done")
 @app_commands.describe(name="Draft whose channel to delete (omit if running from inside the draft channel)")
 @app_commands.autocomplete(name=_all_drafts_autocomplete)
