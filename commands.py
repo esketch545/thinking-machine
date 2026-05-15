@@ -105,19 +105,24 @@ async def newdraft(
         session.player_ids = [interaction.user.id] * player_count
         session.test_mode = True
 
-    # Create a dedicated text channel for this draft
-    channel_name = "draft-" + re.sub(r"[^a-z0-9_-]", "-", draft_name.replace(" ", "-"))
-    draft_channel = None
+    # Create a dedicated thread for this draft
+    thread_name = "draft-" + re.sub(r"[^a-z0-9_-]", "-", draft_name.replace(" ", "-"))
+    draft_thread = None
     await interaction.response.defer(ephemeral=True)
     try:
-        draft_channel = await interaction.guild.create_text_channel(
-            channel_name,
-            category=interaction.channel.category,
-            topic=f"Dune faction draft: {draft_name}",
-        )
-        session.draft_channel_id = draft_channel.id
+        # Threads must be created on a TextChannel; if we're already inside a thread, use its parent
+        parent = interaction.channel
+        if isinstance(parent, discord.Thread):
+            parent = parent.parent
+        if isinstance(parent, discord.TextChannel):
+            draft_thread = await parent.create_thread(
+                name=thread_name,
+                type=discord.ChannelType.public_thread,
+                auto_archive_duration=10080,  # 7 days
+            )
+            session.draft_channel_id = draft_thread.id
     except discord.Forbidden:
-        pass  # bot lacks Manage Channels — fall back to current channel
+        pass  # bot lacks Create Public Threads — fall back to current channel
 
     set_session(session)
     save_state()
@@ -129,23 +134,23 @@ async def newdraft(
     embed = discord.Embed(
         title=f"Draft Created — {draft_name}",
         description=(
-            f"The draft is open! Players must join from this channel using `/joindraft` — first come, first served.\n\n"
+            f"The draft is open! Players must join from this thread using `/joindraft` — first come, first served.\n\n"
             f"All factions are in the pool by default. Use the selector below to remove any before starting.{test_note}"
         ),
         color=discord.Color.green(),
     )
 
-    target = draft_channel or interaction.channel
+    target = draft_thread or interaction.channel
     await target.send(embed=embed, view=FactionPoolSelect(session))
 
-    if draft_channel:
+    if draft_thread:
         await interaction.followup.send(
-            f"Draft **{draft_name}** created! Head to {draft_channel.mention} to set up factions and track picks.",
+            f"Draft **{draft_name}** created! Head to {draft_thread.mention} to set up factions and track picks.",
             ephemeral=True,
         )
     else:
         await interaction.followup.send(
-            "Draft created (couldn't create a dedicated channel — missing Manage Channels permission).",
+            "Draft created (couldn't create a thread — missing Create Public Threads permission).",
             ephemeral=True,
         )
 
@@ -402,7 +407,6 @@ async def renamedraft(interaction: discord.Interaction, new_name: str, name: Opt
             try:
                 await channel.edit(
                     name=new_channel_name,
-                    topic=f"Dune faction draft: {new_draft_name}",
                     reason=f"Draft renamed from '{draft_name}' to '{new_draft_name}'",
                 )
             except discord.Forbidden:
@@ -424,7 +428,7 @@ async def cleanupdraft(interaction: discord.Interaction, name: Optional[str] = N
     if err:
         # Session may be gone post-restart but channel still exists — delete it directly
         ch = interaction.channel
-        if isinstance(ch, discord.TextChannel) and ch.name.startswith("draft-"):
+        if isinstance(ch, discord.Thread) and ch.name.startswith("draft-"):
             await interaction.response.send_message(
                 "No active session for this channel — deleting orphaned draft channel.", ephemeral=True
             )
@@ -441,7 +445,7 @@ async def cleanupdraft(interaction: discord.Interaction, name: Optional[str] = N
     if not session:
         # Session gone post-restart; if we're in the channel, just delete it
         ch = interaction.channel
-        if isinstance(ch, discord.TextChannel) and ch.name.startswith("draft-"):
+        if isinstance(ch, discord.Thread) and ch.name.startswith("draft-"):
             await interaction.response.send_message(
                 "Session no longer active — deleting orphaned draft channel.", ephemeral=True
             )

@@ -15,7 +15,7 @@
 
 1. In the Developer Portal, go to **OAuth2 → URL Generator**
 2. Under **Scopes**, check: `bot` and `applications.commands`
-3. Under **Bot Permissions**, check: `Send Messages`, `Embed Links`, `Read Message History`, `Manage Channels`
+3. Under **Bot Permissions**, check: `Send Messages`, `Embed Links`, `Read Message History`, `Attach Files`, `Create Public Threads`, `Manage Threads`
 4. Copy the generated URL and open it in your browser to invite the bot to your test server
 
 ## 3. Install Dependencies & Run
