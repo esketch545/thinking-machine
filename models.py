@@ -19,6 +19,7 @@ class GameSession:
         self.current_draw: list[str] = []
         self.state: str = "joining"             # joining | drafting | done
         self.channel_id: int | None = None
+        self.draft_channel_id: int | None = None  # dedicated channel created for this draft
         self.test_mode: bool = False           # True when one person fills all seats
 
     @property
@@ -38,6 +39,7 @@ class GameSession:
             "current_draw": self.current_draw,
             "state": self.state,
             "channel_id": self.channel_id,
+            "draft_channel_id": self.draft_channel_id,
             "test_mode": self.test_mode,
         }
 
@@ -51,6 +53,7 @@ class GameSession:
         s.current_draw = data["current_draw"]
         s.state = data["state"]
         s.channel_id = data.get("channel_id")
+        s.draft_channel_id = data.get("draft_channel_id")
         s.test_mode = data.get("test_mode", False)
         return s
 
