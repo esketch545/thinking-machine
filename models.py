@@ -8,10 +8,11 @@ game_sessions: dict[int, dict[str, "GameSession"]] = {}
 
 
 class GameSession:
-    def __init__(self, guild_id: int, name: str, host_id: int):
+    def __init__(self, guild_id: int, name: str, host_id: int, max_players: int = 6):
         self.guild_id = guild_id
         self.name = name                       # normalised lowercase draft name
         self.host_id = host_id
+        self.max_players: int = max_players
         self.player_ids: list[int] = []        # user IDs in join order (may repeat in test mode)
         self.faction_pool: set[str] = set()
         self.assignments: dict[int, str] = {}  # seat index -> faction name
@@ -32,6 +33,7 @@ class GameSession:
         return {
             "name": self.name,
             "host_id": self.host_id,
+            "max_players": self.max_players,
             "player_ids": self.player_ids,
             "faction_pool": list(self.faction_pool),
             "assignments": {str(k): v for k, v in self.assignments.items()},
@@ -45,7 +47,7 @@ class GameSession:
 
     @classmethod
     def from_dict(cls, guild_id: int, data: dict) -> "GameSession":
-        s = cls(guild_id=guild_id, name=data["name"], host_id=data["host_id"])
+        s = cls(guild_id=guild_id, name=data["name"], host_id=data["host_id"], max_players=data.get("max_players", 6))
         s.player_ids = data["player_ids"]
         s.faction_pool = set(data["faction_pool"])
         s.assignments = {int(k): v for k, v in data["assignments"].items()}
