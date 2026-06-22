@@ -75,12 +75,14 @@ async def _all_drafts_autocomplete(
 @bot.tree.command(name="newdraft", description="Start a new Dune faction draft")
 @app_commands.describe(
     name="A short name for this draft (e.g. friday-night)",
-    player_count="Solo testing: pre-fill this many seats so one person can run the full draft (1–5)",
+    max_players="Maximum number of players allowed to join (2–10, default 6)",
+    player_count="Solo testing: pre-fill this many seats so one person can run the full draft",
 )
 async def newdraft(
     interaction: discord.Interaction,
     name: str,
-    player_count: Optional[app_commands.Range[int, 1, 5]] = None,
+    max_players: Optional[app_commands.Range[int, 2, 10]] = None,
+    player_count: Optional[app_commands.Range[int, 1, 10]] = None,
 ):
     gid = interaction.guild_id
     draft_name = _normalise(name)
@@ -97,11 +99,17 @@ async def newdraft(
         )
         return
 
-    session = GameSession(guild_id=gid, name=draft_name, host_id=interaction.user.id)
+    session = GameSession(guild_id=gid, name=draft_name, host_id=interaction.user.id, max_players=max_players or GameSession.DEFAULT_MAX_PLAYERS)
     session.faction_pool = set(FACTIONS.keys())  # all factions selected by default
     session.state = "joining"                     # immediately open for players to join
 
     if player_count is not None:
+        if player_count > session.max_players:
+            await interaction.response.send_message(
+                f"Solo test `player_count` ({player_count}) cannot exceed `max_players` ({session.max_players}).",
+                ephemeral=True,
+            )
+            return
         session.player_ids = [interaction.user.id] * player_count
         session.test_mode = True
 
@@ -134,7 +142,8 @@ async def newdraft(
     embed = discord.Embed(
         title=f"Draft Created — {draft_name}",
         description=(
-            f"The draft is open! Players must join from this thread using `/joindraft` — first come, first served.\n\n"
+            f"The draft is open! Players must join from this thread using `/joindraft` — first come, first served "
+            f"(max **{session.max_players}** players).\n\n"
             f"All factions are in the pool by default. Use the selector below to remove any before starting.{test_note}"
         ),
         color=discord.Color.green(),
@@ -196,9 +205,9 @@ async def joindraft(interaction: discord.Interaction, name: Optional[str] = None
             f"Draft **{draft_name}** is not accepting players right now.", ephemeral=True
         )
         return
-    if len(session.player_ids) >= 5:
+    if len(session.player_ids) >= session.max_players:
         await interaction.response.send_message(
-            "This draft is full (5 players max).", ephemeral=True
+            f"This draft is full ({session.max_players} players max).", ephemeral=True
         )
         return
     if interaction.user.id in session.player_ids:
@@ -218,7 +227,7 @@ async def joindraft(interaction: discord.Interaction, name: Optional[str] = None
         title=f"[{draft_name}] Player Joined!",
         description=(
             f"**{interaction.user.display_name}** joined.\n\n"
-            f"**Players ({len(session.player_ids)}/5):**\n" + "\n".join(lines)
+            f"**Players ({len(session.player_ids)}/{session.max_players}):**\n" + "\n".join(lines)
         ),
         color=discord.Color.green(),
     )

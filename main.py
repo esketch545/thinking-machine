@@ -9,7 +9,7 @@ from bot import bot
 from game import load_and_restore
 
 
-TEST_GUILD_ID = 0  # TODO: replace with your server ID
+TEST_GUILD_ID = int(os.getenv("TEST_GUILD_ID") or 0)
 
 @bot.event
 async def on_ready():
