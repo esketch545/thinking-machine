@@ -75,7 +75,7 @@ async def _all_drafts_autocomplete(
 @bot.tree.command(name="newdraft", description="Start a new Dune faction draft")
 @app_commands.describe(
     name="A short name for this draft (e.g. friday-night)",
-    max_players="Maximum number of players allowed to join (2–10, default 5)",
+    max_players="Maximum number of players allowed to join (2–10, default 6)",
     player_count="Solo testing: pre-fill this many seats so one person can run the full draft",
 )
 async def newdraft(
@@ -99,15 +99,14 @@ async def newdraft(
         )
         return
 
-    resolved_max = max_players if max_players is not None else 6
-    session = GameSession(guild_id=gid, name=draft_name, host_id=interaction.user.id, max_players=resolved_max)
+    session = GameSession(guild_id=gid, name=draft_name, host_id=interaction.user.id, max_players=max_players or GameSession.DEFAULT_MAX_PLAYERS)
     session.faction_pool = set(FACTIONS.keys())  # all factions selected by default
     session.state = "joining"                     # immediately open for players to join
 
     if player_count is not None:
-        if player_count > resolved_max:
+        if player_count > session.max_players:
             await interaction.response.send_message(
-                f"Solo test `player_count` ({player_count}) cannot exceed `max_players` ({resolved_max}).",
+                f"Solo test `player_count` ({player_count}) cannot exceed `max_players` ({session.max_players}).",
                 ephemeral=True,
             )
             return
@@ -144,7 +143,7 @@ async def newdraft(
         title=f"Draft Created — {draft_name}",
         description=(
             f"The draft is open! Players must join from this thread using `/joindraft` — first come, first served "
-            f"(max **{resolved_max}** players).\n\n"
+            f"(max **{session.max_players}** players).\n\n"
             f"All factions are in the pool by default. Use the selector below to remove any before starting.{test_note}"
         ),
         color=discord.Color.green(),

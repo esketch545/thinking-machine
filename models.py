@@ -8,7 +8,9 @@ game_sessions: dict[int, dict[str, "GameSession"]] = {}
 
 
 class GameSession:
-    def __init__(self, guild_id: int, name: str, host_id: int, max_players: int = 6):
+    DEFAULT_MAX_PLAYERS: int = 6
+
+    def __init__(self, guild_id: int, name: str, host_id: int, max_players: int = DEFAULT_MAX_PLAYERS):
         self.guild_id = guild_id
         self.name = name                       # normalised lowercase draft name
         self.host_id = host_id
@@ -47,7 +49,7 @@ class GameSession:
 
     @classmethod
     def from_dict(cls, guild_id: int, data: dict) -> "GameSession":
-        s = cls(guild_id=guild_id, name=data["name"], host_id=data["host_id"], max_players=data.get("max_players", 6))
+        s = cls(guild_id=guild_id, name=data["name"], host_id=data["host_id"], max_players=data.get("max_players", cls.DEFAULT_MAX_PLAYERS))
         s.player_ids = data["player_ids"]
         s.faction_pool = set(data["faction_pool"])
         s.assignments = {int(k): v for k, v in data["assignments"].items()}
